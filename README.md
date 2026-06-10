@@ -10,7 +10,7 @@ The focus is data quality, data governance, and operational data management rath
 
 Manufacturing batch data arrives from operational teams or source systems. Before the data can be used for reporting, analytics, or regulated workflow steps, each file must pass basic quality controls.
 
-The framework validates incoming manufacturing data files, routes accepted and rejected files, records validation outcomes in a structured report, and consolidates accepted datasets into a standardized output with source-file traceability.
+The framework validates incoming manufacturing data files, routes accepted and rejected files, records validation outcomes in a structured report, and consolidates only accepted datasets into a standardized output with source-file traceability. Rejected files remain unprocessed in the rejected folder for review.
 
 ## Folder Structure
 
@@ -34,6 +34,7 @@ manufacturing-data-quality-framework/
 
 - CSV files: `.csv`
 - Excel files: `.xlsx`
+- Legacy Excel files: `.xls`
 
 JSON and XML are intentionally out of scope for MVP 2.
 
@@ -107,7 +108,7 @@ The consolidated output uses this target schema:
 pip install -r requirements.txt
 ```
 
-2. Place `.csv` or `.xlsx` files in:
+2. Place `.csv`, `.xlsx`, or `.xls` files in:
 
 ```text
 data/incoming/
@@ -144,7 +145,7 @@ Report columns:
 - `status`
 - `message`
 
-Accepted files are also consolidated into:
+Only accepted files are consolidated into:
 
 ```text
 data/processed/consolidated_manufacturing_data.csv

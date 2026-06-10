@@ -13,7 +13,7 @@ PROCESSED_DIR = BASE_DIR / "data" / "processed"
 REPORT_PATH = BASE_DIR / "reports" / "validation_report.csv"
 CONSOLIDATED_OUTPUT_PATH = PROCESSED_DIR / "consolidated_manufacturing_data.csv"
 
-SUPPORTED_EXTENSIONS = {".csv", ".xlsx"}
+SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 
 REQUIRED_COLUMNS = [
     "batch_id",
@@ -37,6 +37,9 @@ def read_file(file_path):
 
     if file_path.suffix.lower() == ".xlsx":
         return pd.read_excel(file_path, engine="openpyxl")
+
+    if file_path.suffix.lower() == ".xls":
+        return pd.read_excel(file_path, engine="xlrd")
 
     raise ValueError(f"Unsupported file format: {file_path.suffix}")
 
@@ -124,10 +127,6 @@ def move_file(file_path, status):
     destination_dir.mkdir(parents=True, exist_ok=True)
     destination_path = destination_dir / file_path.name
 
-    if destination_path.exists():
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        destination_path = destination_dir / f"{file_path.stem}_{timestamp}{file_path.suffix}"
-
     shutil.move(str(file_path), str(destination_path))
 
 
@@ -155,6 +154,8 @@ def process_file(file_path):
 
 
 def consolidate_accepted_files():
+    print("Only accepted files are eligible for consolidation.")
+
     accepted_files = sorted(
         file_path
         for file_path in ACCEPTED_DIR.iterdir()
@@ -165,7 +166,7 @@ def consolidate_accepted_files():
         print("No accepted files found. Consolidated output was not created.")
         return
 
-    print("Creating consolidated output...")
+    print("Creating consolidated output from accepted files...")
 
     processed_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     dataframes = []
