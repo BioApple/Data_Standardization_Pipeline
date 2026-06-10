@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Generated intake results
+data/accepted/*
+data/rejected/*
+reports/validation_report.csv
+
+# Keep folder structure
+!data/incoming/.gitkeep
+!data/accepted/.gitkeep
+!data/rejected/.gitkeep
+!reports/.gitkeep
+
+.idea/

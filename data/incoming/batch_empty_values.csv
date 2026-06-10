@@ -1,0 +1,3 @@
+batch_id,material_id,production_date,site,status,quantity,unit
+BATCH-2026-008,,2026-06-06,Basel,Released,95,kg
+BATCH-2026-009,MAT-009,,Lucerne,In Progress,40,mL
