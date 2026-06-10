@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This portfolio project demonstrates a controlled manufacturing data intake process. Incoming CSV and Excel files are validated before they are accepted into downstream workflows.
+This portfolio project demonstrates a controlled manufacturing data intake process. Incoming CSV and Excel files are validated, routed, reported, and consolidated before they are used in downstream workflows.
 
 The focus is data quality, data governance, and operational data management rather than software complexity.
 
@@ -10,7 +10,7 @@ The focus is data quality, data governance, and operational data management rath
 
 Manufacturing batch data arrives from operational teams or source systems. Before the data can be used for reporting, analytics, or regulated workflow steps, each file must pass basic quality controls.
 
-Files that pass validation are moved to `data/accepted/`. Files that fail validation are moved to `data/rejected/`, and the reason is written to an audit-style validation report.
+The framework validates incoming manufacturing data files, routes accepted and rejected files, records validation outcomes in a structured report, and consolidates accepted datasets into a standardized output with source-file traceability.
 
 ## Folder Structure
 
@@ -22,7 +22,8 @@ manufacturing-data-quality-framework/
 ├── data/
 │   ├── incoming/
 │   ├── accepted/
-│   └── rejected/
+│   ├── rejected/
+│   └── processed/
 ├── reports/
 │   └── validation_report.csv
 └── src/
@@ -34,7 +35,7 @@ manufacturing-data-quality-framework/
 - CSV files: `.csv`
 - Excel files: `.xlsx`
 
-JSON and XML are intentionally out of scope for MVP 1.
+JSON and XML are intentionally out of scope for MVP 2.
 
 ## Expected Data Schema
 
@@ -76,6 +77,28 @@ Allowed `unit` values:
 - `mL`
 - `L`
 
+## Consolidated Output
+
+After validation is complete, accepted files are standardized and combined into one consolidated dataset:
+
+```text
+data/processed/consolidated_manufacturing_data.csv
+```
+
+The consolidated output uses this target schema:
+
+- `batch_id`
+- `material_id`
+- `production_date`
+- `site`
+- `status`
+- `quantity`
+- `unit`
+- `source_file`
+- `processed_at`
+
+`source_file` records the accepted file each row came from. `processed_at` records when the consolidation process ran.
+
 ## How To Run
 
 1. Install dependencies:
@@ -90,7 +113,7 @@ pip install -r requirements.txt
 data/incoming/
 ```
 
-3. Run the validation process:
+3. Run the validation and consolidation process:
 
 ```bash
 python src/validate_files.py
@@ -108,7 +131,7 @@ Processing batch_002.xlsx...
 FAIL - Missing required column: production_date
 ```
 
-It also generates:
+It also generates a validation report:
 
 ```text
 reports/validation_report.csv
@@ -121,6 +144,12 @@ Report columns:
 - `status`
 - `message`
 
+Accepted files are also consolidated into:
+
+```text
+data/processed/consolidated_manufacturing_data.csv
+```
+
 ## Portfolio Skills Demonstrated
 
 - Data ingestion
@@ -128,5 +157,7 @@ Report columns:
 - Validation logic
 - Exception handling
 - Audit-style reporting
+- Standardized data consolidation
+- Source-file traceability
 - Operational workflow design
 - Manufacturing data governance thinking

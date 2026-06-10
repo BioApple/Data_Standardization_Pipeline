@@ -3,16 +3,17 @@ __pycache__/
 .venv/
 venv/
 .env
+.idea/
 
 # Generated intake results
 data/accepted/*
 data/rejected/*
+data/processed/*
 reports/validation_report.csv
 
 # Keep folder structure
 !data/incoming/.gitkeep
 !data/accepted/.gitkeep
 !data/rejected/.gitkeep
+!data/processed/.gitkeep
 !reports/.gitkeep
-
-.idea/
