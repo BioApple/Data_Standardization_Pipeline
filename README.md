@@ -1,16 +1,10 @@
 # Manufacturing Data Quality Framework
 
-## Project Overview
+This is a small data pipeline for checking incoming manufacturing batch files before they are used downstream.
 
-This portfolio project demonstrates a controlled manufacturing data intake process. Incoming CSV and Excel files are validated, routed, reported, and consolidated before they are used in downstream workflows.
+The pipeline reads files from `data/incoming/`, validates them, moves good files to `data/accepted/`, moves failed files to `data/rejected/`, writes a validation report, and consolidates accepted files into one standardized output.
 
-The focus is data quality, data governance, and operational data management rather than software complexity.
-
-## Business Scenario
-
-Manufacturing batch data arrives from operational teams or source systems. Before the data can be used for reporting, analytics, or regulated workflow steps, each file must pass basic quality controls.
-
-The framework validates incoming manufacturing data files, routes accepted and rejected files, records validation outcomes in a structured report, and consolidates only accepted datasets into a standardized output with source-file traceability. Rejected files remain unprocessed in the rejected folder for review.
+Rejected files are not consolidated. They stay in `data/rejected/` so they can be reviewed separately.
 
 ## Folder Structure
 
@@ -30,17 +24,17 @@ manufacturing-data-quality-framework/
     └── validate_files.py
 ```
 
-## Supported File Formats
+## Supported Files
 
-- CSV files: `.csv`
-- Excel files: `.xlsx`
-- Legacy Excel files: `.xls`
+- `.csv`
+- `.xlsx`
+- `.xls`
 
-JSON and XML are intentionally out of scope for MVP 2.
+JSON and XML are not included yet.
 
-## Expected Data Schema
+## Expected Columns
 
-The default required columns are:
+Input files should contain these columns:
 
 - `batch_id`
 - `material_id`
@@ -50,19 +44,19 @@ The default required columns are:
 - `quantity`
 - `unit`
 
-These fields are defined in `src/validate_files.py` and can be modified as the project evolves.
+The required columns are defined near the top of `src/validate_files.py`, so they can be changed later if the data model changes.
 
-## Validation Rules
+## Checks Performed
 
-The intake process checks each supported file for:
+The pipeline checks for:
 
-- Missing required columns
-- Empty mandatory values
-- Duplicate `batch_id` values within the file
-- Invalid `production_date` values
-- Invalid `status` values
-- Non-numeric or non-positive `quantity` values
-- Invalid `unit` values
+- missing required columns
+- empty required values
+- duplicate `batch_id` values
+- invalid production dates
+- invalid status values
+- non-numeric or non-positive quantities
+- invalid units
 
 Allowed `status` values:
 
@@ -78,15 +72,41 @@ Allowed `unit` values:
 - `mL`
 - `L`
 
-## Consolidated Output
+## How To Run
 
-After validation is complete, accepted files are standardized and combined into one consolidated dataset:
+Install the required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+Put input files into:
+
+```text
+data/incoming/
+```
+
+Run the pipeline:
+
+```bash
+python src/validate_files.py
+```
+
+## Outputs
+
+Validation results are written to:
+
+```text
+reports/validation_report.csv
+```
+
+Accepted files are consolidated into:
 
 ```text
 data/processed/consolidated_manufacturing_data.csv
 ```
 
-The consolidated output uses this target schema:
+The consolidated file uses this schema:
 
 - `batch_id`
 - `material_id`
@@ -98,31 +118,9 @@ The consolidated output uses this target schema:
 - `source_file`
 - `processed_at`
 
-`source_file` records the accepted file each row came from. `processed_at` records when the consolidation process ran.
+`source_file` shows which accepted file the row came from. `processed_at` shows when the consolidation was created.
 
-## How To Run
-
-1. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-2. Place `.csv`, `.xlsx`, or `.xls` files in:
-
-```text
-data/incoming/
-```
-
-3. Run the validation and consolidation process:
-
-```bash
-python src/validate_files.py
-```
-
-## Output
-
-The script displays progress in the console:
+## Example Console Output
 
 ```text
 Processing batch_001.csv...
@@ -130,35 +128,13 @@ PASS
 
 Processing batch_002.xlsx...
 FAIL - Missing required column: production_date
+
+Validation complete.
+Accepted files: 1
+Rejected files: 1
+
+Only accepted files are eligible for consolidation.
+Creating consolidated output from accepted files...
+Consolidated file created: data/processed/consolidated_manufacturing_data.csv
+Rows written: 3
 ```
-
-It also generates a validation report:
-
-```text
-reports/validation_report.csv
-```
-
-Report columns:
-
-- `timestamp`
-- `file_name`
-- `status`
-- `message`
-
-Only accepted files are consolidated into:
-
-```text
-data/processed/consolidated_manufacturing_data.csv
-```
-
-## Portfolio Skills Demonstrated
-
-- Data ingestion
-- Data quality controls
-- Validation logic
-- Exception handling
-- Audit-style reporting
-- Standardized data consolidation
-- Source-file traceability
-- Operational workflow design
-- Manufacturing data governance thinking

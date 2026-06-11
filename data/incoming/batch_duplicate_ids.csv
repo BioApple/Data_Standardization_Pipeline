@@ -1,3 +1,0 @@
-batch_id,material_id,production_date,site,status,quantity,unit
-BATCH-2026-006,MAT-006,2026-06-04,Basel,Released,200,kg
-BATCH-2026-006,MAT-007,2026-06-05,Zug,In Progress,150,g
