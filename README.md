@@ -1,15 +1,15 @@
-# Manufacturing Data Quality Framework
+# Scientific Data Quality Framework
 
-This is a small data pipeline for checking incoming manufacturing batch files before they are used downstream.
+A lightweight data quality pipeline for checking incoming scientific data files before they are used downstream.
 
-The pipeline reads files from `data/incoming/`, validates them, moves good files to `data/accepted/`, moves failed files to `data/rejected/`, writes a validation report, and consolidates accepted files into one standardized output.
+The current workflow focuses on ADMET CRO Excel reports. It validates incoming files, routes accepted and rejected files, records validation results, and standardizes accepted ADMET reports into a long-format output.
 
-Rejected files are not consolidated. They stay in `data/rejected/` so they can be reviewed separately.
+Rejected files are not processed further. They stay in `data/rejected/` for review.
 
 ## Folder Structure
 
 ```text
-manufacturing-data-quality-framework/
+scientific-data-quality-framework/
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -24,57 +24,42 @@ manufacturing-data-quality-framework/
     └── validate_files.py
 ```
 
-## Supported Files
+## Supported Input
 
-- `.csv`
+ADMET CRO reports in Excel format:
+
 - `.xlsx`
 - `.xls`
 
-JSON and XML are not included yet.
+The expected filename pattern is:
 
-## Expected Columns
+```text
+YYYYMMDD_CRO_Species_Assay_STUDY-ID.xlsx
+```
 
-Input files should contain these columns:
+Example:
 
-- `batch_id`
-- `material_id`
-- `production_date`
-- `site`
-- `status`
-- `quantity`
-- `unit`
+```text
+20260615_GVK_Human_Hepatocyte_Stability_STUDY-ADMET-001.xlsx
+```
 
-The required columns are defined near the top of `src/validate_files.py`, so they can be changed later if the data model changes.
+## What The Pipeline Checks
 
-## Checks Performed
+The pipeline checks that:
 
-The pipeline checks for:
-
-- missing required columns
-- empty required values
-- duplicate `batch_id` values
-- invalid production dates
-- invalid status values
-- non-numeric or non-positive quantities
-- invalid units
-
-Allowed `status` values:
-
-- `Released`
-- `In Progress`
-- `Rejected`
-
-Allowed `unit` values:
-
-- `mg`
-- `g`
-- `kg`
-- `mL`
-- `L`
+- the filename contains the expected metadata
+- the CRO, species, and assay name are supported
+- the workbook contains a `Report` sheet
+- the result table can be detected
+- `compound_id` is present and not empty
+- required assay-specific columns are present
+- numeric values are valid
+- percentages are between 0 and 100
+- negative values are rejected where they do not make sense
 
 ## How To Run
 
-Install the required packages:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -100,41 +85,23 @@ Validation results are written to:
 reports/validation_report.csv
 ```
 
-Accepted files are consolidated into:
+Accepted ADMET reports are standardized into:
 
 ```text
-data/processed/consolidated_manufacturing_data.csv
+data/processed/standardized_admet_results.csv
 ```
 
-The consolidated file uses this schema:
+The standardized output uses one row per compound measurement:
 
-- `batch_id`
-- `material_id`
-- `production_date`
-- `site`
-- `status`
-- `quantity`
+- `compound_id`
+- `exp_date`
+- `cro`
+- `species`
+- `assay_name`
+- `study_id`
+- `parameter`
+- `value`
 - `unit`
 - `source_file`
 - `processed_at`
-
-`source_file` shows which accepted file the row came from. `processed_at` shows when the consolidation was created.
-
-## Example Console Output
-
-```text
-Processing batch_001.csv...
-PASS
-
-Processing batch_002.xlsx...
-FAIL - Missing required column: production_date
-
-Validation complete.
-Accepted files: 1
-Rejected files: 1
-
-Only accepted files are eligible for consolidation.
-Creating consolidated output from accepted files...
-Consolidated file created: data/processed/consolidated_manufacturing_data.csv
-Rows written: 3
-```
+- `original_column`
