@@ -13,6 +13,8 @@ scientific-data-quality-framework/
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
+├── config/
+│   └── admet_mapping_config.xlsx
 ├── data/
 │   ├── incoming/
 │   ├── accepted/
@@ -56,6 +58,27 @@ The pipeline checks that:
 - numeric values are valid
 - percentages are between 0 and 100
 - negative values are rejected where they do not make sense
+
+## Configuration-Driven Mapping
+
+The framework uses an external assay mapping configuration file:
+
+```text
+config/admet_mapping_config.xlsx
+```
+
+This file controls how source measurements are standardized into target parameters, units, and value types. Mapping rules can be added or changed in the config file without editing the Python code.
+
+The config includes:
+
+- `assay_name`
+- `source_measurement`
+- `parameter`
+- `unit`
+- `value_type`
+- `include_in_output`
+
+Use `include_in_output = no` when a source measurement is allowed in an input file but should not be written to the standardized output.
 
 ## How To Run
 

@@ -10,9 +10,11 @@ INCOMING_DIR = BASE_DIR / "data" / "incoming"
 ACCEPTED_DIR = BASE_DIR / "data" / "accepted"
 REJECTED_DIR = BASE_DIR / "data" / "rejected"
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
+CONFIG_DIR = BASE_DIR / "config"
 REPORT_PATH = BASE_DIR / "reports" / "validation_report.csv"
-CONSOLIDATED_OUTPUT_PATH = PROCESSED_DIR / "consolidated_manufacturing_data.csv"
+CONSOLIDATED_OUTPUT_PATH = PROCESSED_DIR / "consolidated_incoming_data.csv"
 ADMET_OUTPUT_PATH = PROCESSED_DIR / "standardized_admet_results.csv"
+ADMET_MAPPING_CONFIG_PATH = CONFIG_DIR / "admet_mapping_config.xlsx"
 
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 EXCEL_EXTENSIONS = {".xlsx", ".xls"}
@@ -34,51 +36,17 @@ ALLOWED_UNITS = {"mg", "g", "kg", "mL", "L"}
 
 ALLOWED_CROS = {"GVK", "Aragen"}
 ALLOWED_SPECIES = {"Human", "Mouse", "Rat", "Dog", "Monkey"}
+ALLOWED_CONFIG_VALUE_TYPES = {"numeric", "percent", "text"}
+ALLOWED_INCLUDE_VALUES = {"yes", "no"}
 
-ADMET_PARAMETER_MAP = {
-    "Hepatocyte Stability": {
-        "concentration_uM": ("concentration", "uM", "numeric"),
-        "timepoint_min": ("timepoint", "min", "numeric"),
-        "remaining_percent": ("remaining_percent", "%", "percent"),
-        "half_life_min": ("half_life", "min", "numeric"),
-    },
-    "Microsome Stability": {
-        "concentration_uM": ("concentration", "uM", "numeric"),
-        "timepoint_min": ("timepoint", "min", "numeric"),
-        "remaining_percent": ("remaining_percent", "%", "percent"),
-        "clint_uL_min_mg": ("intrinsic_clearance", "uL/min/mg", "numeric"),
-    },
-    "Plasma Stability": {
-        "concentration_uM": ("concentration", "uM", "numeric"),
-        "timepoint_min": ("timepoint", "min", "numeric"),
-        "remaining_percent": ("remaining_percent", "%", "percent"),
-        "matrix": ("matrix", "text", "text"),
-    },
-    "Solubility": {
-        "nominal_concentration_uM": ("nominal_concentration", "uM", "numeric"),
-        "pH": ("pH", "unitless", "numeric"),
-        "solubility_uM": ("solubility", "uM", "numeric"),
-        "result_flag": ("result_flag", "text", "text"),
-    },
-    "Protein Binding": {
-        "concentration_uM": ("concentration", "uM", "numeric"),
-        "matrix": ("matrix", "text", "text"),
-        "fraction_unbound_percent": ("fraction_unbound", "%", "percent"),
-        "bound_percent": ("bound", "%", "percent"),
-    },
-    "Permeability Caco2": {
-        "concentration_uM": ("concentration", "uM", "numeric"),
-        "papp_ab_10_6_cm_s": ("papp_ab", "10^-6 cm/s", "numeric"),
-        "papp_ba_10_6_cm_s": ("papp_ba", "10^-6 cm/s", "numeric"),
-        "efflux_ratio": ("efflux_ratio", "unitless", "numeric"),
-    },
-    "CYP Inhibition": {
-        "concentration_uM": ("concentration", "uM", "numeric"),
-        "cyp_isoform": ("cyp_isoform", "text", "text"),
-        "inhibition_percent": ("inhibition", "%", "percent"),
-        "ic50_uM": ("ic50", "uM", "numeric"),
-    },
-}
+CONFIG_REQUIRED_COLUMNS = [
+    "assay_name",
+    "source_measurement",
+    "parameter",
+    "unit",
+    "value_type",
+    "include_in_output",
+]
 
 ADMET_TARGET_SCHEMA = [
     "compound_id",
@@ -111,6 +79,57 @@ def read_file(file_path):
 
 def is_empty(series):
     return series.isna() | (series.astype(str).str.strip() == "")
+
+
+def load_admet_mapping_config():
+    if not ADMET_MAPPING_CONFIG_PATH.exists():
+        raise FileNotFoundError(f"ADMET mapping config not found: {ADMET_MAPPING_CONFIG_PATH}")
+
+    config_df = pd.read_excel(ADMET_MAPPING_CONFIG_PATH, engine="openpyxl")
+
+    missing_columns = [column for column in CONFIG_REQUIRED_COLUMNS if column not in config_df.columns]
+    if missing_columns:
+        raise ValueError(f"ADMET mapping config is missing column: {', '.join(missing_columns)}")
+
+    config_df = config_df[CONFIG_REQUIRED_COLUMNS].copy()
+    config_df = config_df.fillna("")
+
+    for column in ["assay_name", "source_measurement", "parameter", "unit"]:
+        config_df[column] = config_df[column].astype(str).str.strip()
+
+    config_df["value_type"] = config_df["value_type"].astype(str).str.strip().str.lower()
+    config_df["include_in_output"] = config_df["include_in_output"].astype(str).str.strip().str.lower()
+
+    if (config_df["assay_name"] == "").any():
+        raise ValueError("ADMET mapping config contains empty assay_name values")
+
+    if (config_df["source_measurement"] == "").any():
+        raise ValueError("ADMET mapping config contains empty source_measurement values")
+
+    duplicate_mappings = config_df.duplicated(subset=["assay_name", "source_measurement"])
+    if duplicate_mappings.any():
+        raise ValueError("ADMET mapping config contains duplicate assay/source_measurement mappings")
+
+    invalid_value_types = sorted(set(config_df["value_type"]) - ALLOWED_CONFIG_VALUE_TYPES)
+    if invalid_value_types:
+        raise ValueError(f"ADMET mapping config contains unsupported value_type: {', '.join(invalid_value_types)}")
+
+    invalid_include_values = sorted(set(config_df["include_in_output"]) - ALLOWED_INCLUDE_VALUES)
+    if invalid_include_values:
+        raise ValueError(
+            f"ADMET mapping config contains unsupported include_in_output value: {', '.join(invalid_include_values)}"
+        )
+
+    mapping_config = {}
+    for _, row in config_df.iterrows():
+        mapping_config.setdefault(row["assay_name"], {})[row["source_measurement"]] = (
+            row["parameter"],
+            row["unit"],
+            row["value_type"],
+            row["include_in_output"],
+        )
+
+    return mapping_config
 
 
 def validate_schema(df):
@@ -199,7 +218,7 @@ def is_admet_file(file_path):
     return file_path.suffix.lower() in EXCEL_EXTENSIONS and "STUDY-ADMET" in file_path.stem
 
 
-def parse_admet_filename(file_path):
+def parse_admet_filename(file_path, admet_mapping_config):
     parts = file_path.stem.split("_")
 
     if len(parts) < 5:
@@ -221,7 +240,7 @@ def parse_admet_filename(file_path):
     if species not in ALLOWED_SPECIES:
         raise ValueError(f"Unsupported species: {species}")
 
-    if assay_name not in ADMET_PARAMETER_MAP:
+    if assay_name not in admet_mapping_config:
         raise ValueError(f"Unsupported assay name: {assay_name}")
 
     return {
@@ -262,19 +281,27 @@ def read_admet_report_table(file_path):
     return table_df
 
 
-def validate_admet_table(df, assay_name):
+def validate_admet_table(df, assay_name, admet_mapping_config):
     if "compound_id" not in df.columns:
         return False, "Result table must contain compound_id"
 
-    mapping = ADMET_PARAMETER_MAP[assay_name]
-    missing_columns = [column for column in mapping if column not in df.columns]
+    mapping = admet_mapping_config[assay_name]
+    required_source_measurements = [
+        source_measurement
+        for source_measurement, (_, _, _, include_in_output) in mapping.items()
+        if include_in_output == "yes"
+    ]
+    missing_columns = [column for column in required_source_measurements if column not in df.columns]
     if missing_columns:
         return False, f"Missing assay-specific column: {', '.join(missing_columns)}"
 
     if is_empty(df["compound_id"]).any():
         return False, "compound_id must not be empty"
 
-    for column, (_, _, value_type) in mapping.items():
+    for column, (_, _, value_type, include_in_output) in mapping.items():
+        if include_in_output != "yes" or column not in df.columns:
+            continue
+
         if value_type == "text":
             continue
 
@@ -291,14 +318,17 @@ def validate_admet_table(df, assay_name):
     return True, "ADMET report validated"
 
 
-def standardize_admet_table(df, metadata, processed_at):
+def standardize_admet_table(df, metadata, processed_at, admet_mapping_config):
     output_rows = []
-    mapping = ADMET_PARAMETER_MAP[metadata["assay_name"]]
+    mapping = admet_mapping_config[metadata["assay_name"]]
 
     for _, row in df.iterrows():
         compound_id = row["compound_id"]
 
-        for source_measurement, (parameter, unit, value_type) in mapping.items():
+        for source_measurement, (parameter, unit, value_type, include_in_output) in mapping.items():
+            if include_in_output != "yes":
+                continue
+
             value = row[source_measurement]
             if value_type in {"numeric", "percent"}:
                 value = pd.to_numeric(value)
@@ -323,7 +353,7 @@ def standardize_admet_table(df, metadata, processed_at):
     return pd.DataFrame(output_rows, columns=ADMET_TARGET_SCHEMA)
 
 
-def process_manufacturing_file(file_path):
+def process_incoming_file(file_path):
     print(f"Processing {file_path.name}...")
 
     try:
@@ -346,16 +376,16 @@ def process_manufacturing_file(file_path):
     return build_report_row(file_path.name, status, message)
 
 
-def process_admet_file(file_path, processed_at):
+def process_admet_file(file_path, processed_at, admet_mapping_config):
     print(f"Processing {file_path.name}...")
 
     try:
-        metadata = parse_admet_filename(file_path)
+        metadata = parse_admet_filename(file_path, admet_mapping_config)
         df = read_admet_report_table(file_path)
-        passed, message = validate_admet_table(df, metadata["assay_name"])
+        passed, message = validate_admet_table(df, metadata["assay_name"], admet_mapping_config)
 
         if passed:
-            standardized_df = standardize_admet_table(df, metadata, processed_at)
+            standardized_df = standardize_admet_table(df, metadata, processed_at, admet_mapping_config)
             print("PASS - ADMET report standardized")
             status = "accepted"
             move_file(file_path, status)
@@ -383,10 +413,10 @@ def consolidate_accepted_files():
     )
 
     if not accepted_files:
-        print("No accepted manufacturing files found. Consolidated output was not created.")
+        print("No accepted incoming files found. Consolidated output was not created.")
         return
 
-    print("Creating consolidated output from accepted manufacturing files...")
+    print("Creating consolidated output from accepted incoming files...")
 
     processed_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     dataframes = []
@@ -406,7 +436,7 @@ def consolidate_accepted_files():
         dataframes.append(standardized_df)
 
     if not dataframes:
-        print("No accepted manufacturing files could be consolidated.")
+        print("No accepted incoming files could be consolidated.")
         return
 
     combined_df = pd.concat(dataframes, ignore_index=True)
@@ -436,6 +466,12 @@ def main():
     REJECTED_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
+    try:
+        admet_mapping_config = load_admet_mapping_config()
+    except Exception as error:
+        print(f"Configuration error: {error}")
+        return
+
     files = sorted(
         file_path
         for file_path in INCOMING_DIR.iterdir()
@@ -451,13 +487,13 @@ def main():
     else:
         for file_path in files:
             if is_admet_file(file_path):
-                report_row, standardized_df = process_admet_file(file_path, processed_at)
+                report_row, standardized_df = process_admet_file(file_path, processed_at, admet_mapping_config)
                 report_rows.append(report_row)
 
                 if standardized_df is not None:
                     admet_dataframes.append(standardized_df)
             else:
-                report_rows.append(process_manufacturing_file(file_path))
+                report_rows.append(process_incoming_file(file_path))
 
         write_validation_report(report_rows)
 
